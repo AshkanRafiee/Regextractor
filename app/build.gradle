@@ -2,11 +2,11 @@ plugins { id 'com.android.application' }
 
 android {
     namespace 'com.ashkanrafiee.regextractor'
-    compileSdk 35
+    compileSdk 36
     defaultConfig {
         applicationId 'com.ashkanrafiee.regextractor'
         minSdk 26
-        targetSdk 35
+        targetSdk 36
         versionCode 10000
         versionName '1.0.0'
     }
@@ -23,6 +23,9 @@ android {
             storePassword (signingValues['storePassword'] ?: env.REGEXTRACTOR_STORE_PASSWORD)
             keyAlias (signingValues['keyAlias'] ?: env.REGEXTRACTOR_KEY_ALIAS)
             keyPassword (signingValues['keyPassword'] ?: env.REGEXTRACTOR_KEY_PASSWORD)
+            enableV1Signing false
+            enableV2Signing true
+            enableV3Signing true
         }
     } }
     buildTypes { release { if (signingValues['storeFile'] ?: env.REGEXTRACTOR_STORE_FILE) signingConfig signingConfigs.release; minifyEnabled false } }
