@@ -1,0 +1,15 @@
+Regextractor turns highlighted examples into a regular expression.
+
+Paste or type any sample text, highlight the parts you want to capture, and the app infers a pattern that matches them. Multiple highlights are generalized: shared structure collapses into one pattern with count ranges, while different shapes become a clean alternation.
+
+Features:
+- Infer regex from one or many highlighted examples
+- Smart generalization of letters, digits, whitespace and literal characters, including case-aware letter classes
+- Live preview listing every match in your text; tap a match to copy it
+- Toggle case-insensitive, multiline, dot-matches-all and find-all behavior
+- Optional named capture groups with content-based names
+- One-tap sample presets (log lines, dates, emails, prices, IDs)
+- Share any text into the app from other apps to extract from it
+- Copy or share the finished pattern
+
+Private by design: Regextractor works fully offline, declares no permissions, and never sends your text anywhere. No account, no analytics, no internet access.

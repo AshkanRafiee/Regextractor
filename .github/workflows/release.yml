@@ -1,0 +1,74 @@
+name: Release Regextractor
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing release tag to build and upload
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag_name }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore release signing files
+        env:
+          KEYSTORE_BASE64: ${{ secrets.REGEXTRACTOR_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.REGEXTRACTOR_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.REGEXTRACTOR_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.REGEXTRACTOR_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > regextractor-release.jks
+          cat > signing.properties <<EOF
+          storeFile=regextractor-release.jks
+          storeType=JKS
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Build signed release
+        run: bash ./gradlew clean assembleRelease
+
+      - name: Create checksum
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "Regextractor-${TAG_NAME}.apk"
+          sha256sum "Regextractor-${TAG_NAME}.apk" > "Regextractor-${TAG_NAME}-SHA256SUMS"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+        run: gh release upload "$TAG_NAME" "Regextractor-${TAG_NAME}.apk" "Regextractor-${TAG_NAME}-SHA256SUMS" --clobber
