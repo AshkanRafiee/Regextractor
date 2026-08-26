@@ -81,6 +81,7 @@ public class AboutActivity extends Activity {
         TextView back = text("\u2039", 34, Color.WHITE);
         back.setGravity(Gravity.CENTER);
         back.setContentDescription("Back");
+        back.setTooltipText("Back");
         back.setOnClickListener(v -> finish());
         bar.addView(back, new LinearLayout.LayoutParams(dp(42), dp(48)));
 

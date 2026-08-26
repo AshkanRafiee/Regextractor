@@ -23,7 +23,9 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -143,7 +145,21 @@ public class MainActivity extends Activity {
     }
 
     private void buildSampleTextSection(LinearLayout parent) {
-        parent.addView(sectionLabel("SAMPLE TEXT"));
+        LinearLayout sampleHeader = new LinearLayout(this);
+        sampleHeader.setGravity(Gravity.CENTER_VERTICAL);
+        sampleHeader.addView(sectionLabel("SAMPLE TEXT"), new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView paste = text("Paste", 13, PURPLE);
+        paste.setPadding(dp(8), dp(6), dp(8), dp(6));
+        paste.setOnClickListener(v -> pasteFromClipboard());
+        sampleHeader.addView(paste);
+
+        TextView clear = text("Clear", 13, MUTED);
+        clear.setPadding(dp(8), dp(6), dp(4), dp(6));
+        clear.setOnClickListener(v -> confirmClear());
+        sampleHeader.addView(clear);
+
+        parent.addView(sampleHeader);
 
         editor = new EditText(this);
         editor.setHint("Paste or type your sample text here");
@@ -167,6 +183,7 @@ public class MainActivity extends Activity {
             }
         });
 
+        parent.addView(sectionLabel("EXAMPLES · TAP TO INSERT"));
         parent.addView(presetStrip(), margin(0, 0, 0, 16));
     }
 
@@ -174,8 +191,11 @@ public class MainActivity extends Activity {
     private View presetStrip() {
         HorizontalScrollView strip = new HorizontalScrollView(this);
         strip.setHorizontalScrollBarEnabled(false);
+        strip.setHorizontalFadingEdgeEnabled(true);
+        strip.setFadingEdgeLength(dp(20));
 
         LinearLayout row = new LinearLayout(this);
+        row.setPadding(0, 0, dp(12), 0);
         String[][] presets = {
                 {"Log lines", "2024-01-15 09:30:12 INFO User alice logged in\n"
                         + "2024-01-15 09:31:47 WARN Disk usage at 91%\n"
@@ -191,8 +211,6 @@ public class MainActivity extends Activity {
         for (String[] preset : presets) {
             row.addView(pill(preset[0], FG, v -> offerPreset(preset[1])));
         }
-        row.addView(pill("Paste", PURPLE, v -> pasteFromClipboard()));
-        row.addView(pill("Clear all", MUTED, v -> confirmClear()));
 
         strip.addView(row);
         return strip;
@@ -233,7 +251,7 @@ public class MainActivity extends Activity {
         chipDotAll = new ToggleChip(toggles, ".*", "Dot also matches line breaks",
                 "dot_all", false);
         chipGlobal = new ToggleChip(toggles, "\u221E", "Find every occurrence, not just the first",
-                "global", true);
+                "global", false);
         card.addView(toggles, margin(0, 0, 0, 4));
 
         LinearLayout namedRow = new LinearLayout(this);
@@ -271,12 +289,14 @@ public class MainActivity extends Activity {
 
         HorizontalScrollView formatStrip = new HorizontalScrollView(this);
         formatStrip.setHorizontalScrollBarEnabled(false);
+        formatStrip.setHorizontalFadingEdgeEnabled(true);
+        formatStrip.setFadingEdgeLength(dp(20));
         LinearLayout formats = new LinearLayout(this);
         formatChips.add(new FormatChip(formats, "Plain", "Plain regular expression",
                 FORMAT_PATTERN));
-        formatChips.add(new FormatChip(formats, "/\u2026/", "JavaScript literal",
+        formatChips.add(new FormatChip(formats, "/\u2026/ JS", "JavaScript literal",
                 FORMAT_JAVASCRIPT));
-        formatChips.add(new FormatChip(formats, "\u201C\u2026\u201D", "Java or Kotlin string literal",
+        formatChips.add(new FormatChip(formats, "\u201C\u2026\u201D Java", "Java or Kotlin string literal",
                 FORMAT_JAVA_STRING));
         formatStrip.addView(formats);
         resultCard.addView(formatStrip, margin(0, 0, 0, 8));
@@ -376,6 +396,7 @@ public class MainActivity extends Activity {
         chip.setBackground(rounded(CARD, 20));
         chip.setPadding(dp(14), 0, dp(8), 0);
         chip.setMinimumHeight(dp(40));
+        chip.setTooltipText("Tap to re-select in the text above");
         chip.setOnClickListener(v -> { // re-select in the editor for easy tweaking
             BackgroundColorSpan span = selectionSpans.get(index);
             editor.requestFocus();
@@ -398,6 +419,7 @@ public class MainActivity extends Activity {
         remove.setGravity(Gravity.CENTER);
         remove.setPadding(dp(14), dp(10), dp(14), dp(10));
         remove.setContentDescription("Remove selection " + (index + 1));
+        remove.setTooltipText("Remove this selection");
         remove.setOnClickListener(v -> removeSelection(index));
         chip.addView(remove);
         return chip;
@@ -437,6 +459,7 @@ public class MainActivity extends Activity {
         currentPattern = RegexBuilder.build(examples, options);
 
         resultCard.setVisibility(View.VISIBLE);
+        matchesHeader.setVisibility(View.VISIBLE);
         patternView.setText(formattedPattern());
         refreshMatches(options);
     }
@@ -447,7 +470,7 @@ public class MainActivity extends Activity {
         switch (outputFormat()) {
             case FORMAT_JAVASCRIPT:
                 return RegexBuilder.toJavascriptLiteral(currentPattern,
-                        prefs().getBoolean("global", true));
+                        prefs().getBoolean("global", false));
             case FORMAT_JAVA_STRING:
                 return RegexBuilder.toJavaStringLiteral(currentPattern);
             default:
@@ -475,18 +498,29 @@ public class MainActivity extends Activity {
      */
     private void refreshMatches(RegexBuilder.Options options) {
         matchesList.removeAllViews();
-        boolean global = prefs().getBoolean("global", true);
+        boolean global = prefs().getBoolean("global", false);
+
+        // Positions of the spans the user actually highlighted, so "not global"
+        // can show exactly what was selected instead of guessing via document
+        // order (which would show the wrong occurrence unless the selection
+        // happened to be the first one in the text).
+        Set<Integer> selectedStarts = new HashSet<>();
+        Editable text = editor.getText();
+        for (BackgroundColorSpan span : selectionSpans) {
+            selectedStarts.add(text.getSpanStart(span));
+        }
 
         List<MatchRow> found = new ArrayList<>();
+        List<MatchRow> selected = new ArrayList<>();
         int total = 0;
         try {
             Matcher matcher = Pattern.compile(currentPattern)
                     .matcher(shortTextForPreview());
             while (matcher.find()) {
                 total++;
-                if (found.size() < MAX_SHOWN_MATCHES) {
-                    found.add(new MatchRow(matcher.group(), matcher.start()));
-                }
+                MatchRow row = new MatchRow(matcher.group(), matcher.start());
+                if (found.size() < MAX_SHOWN_MATCHES) found.add(row);
+                if (selectedStarts.contains(matcher.start())) selected.add(row);
                 if (matcher.start() == matcher.end()) break; // safety against empty matches
             }
         } catch (RuntimeException broken) {
@@ -495,10 +529,10 @@ public class MainActivity extends Activity {
             return;
         }
 
-        List<MatchRow> shown = global || found.isEmpty() ? found : found.subList(0, 1);
+        List<MatchRow> shown = global ? found : selected;
         matchesHeader.setText(global
                 ? "MATCHES (" + total + ")"
-                : "FIRST MATCH OF " + total);
+                : "SELECTED (" + shown.size() + " of " + total + ")");
 
         if (shown.isEmpty()) {
             matchesList.addView(noteRow(
@@ -522,6 +556,8 @@ public class MainActivity extends Activity {
         item.setBackground(rounded(CARD, 12));
         item.setPadding(dp(14), 0, dp(14), 0);
         item.setMinimumHeight(dp(44));
+        item.setContentDescription("Copy match: " + row.text);
+        item.setTooltipText("Tap to copy");
         item.setOnClickListener(v -> copyText(row.text));
 
         TextView value = text(row.text, 13, first ? CYAN : FG);
@@ -615,7 +651,7 @@ public class MainActivity extends Activity {
     }
 
     // ------------------------------------------------------------------
-    // Incoming text (share-to-app plus a small automation hook for testing)
+    // Incoming text (share-to-app)
 
     @Override
     protected void onNewIntent(Intent intent) {
@@ -630,22 +666,9 @@ public class MainActivity extends Activity {
     }
 
     private void handleIncomingIntent(Intent intent) {
-        if (intent == null) return;
-        if (Intent.ACTION_SEND.equals(intent.getAction())) {
-            CharSequence shared = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
-            if (shared != null && shared.length() > 0) editor.setText(shared);
-            return;
-        }
-        String sample = intent.getStringExtra("sample_text");
-        if (sample != null) editor.setText(sample);
-        int[] pairs = intent.getIntArrayExtra("demo_selections");
-        if (sample != null && pairs != null) {
-            for (int i = 0; i + 1 < pairs.length; i += 2) {
-                editor.requestFocus();
-                editor.setSelection(pairs[i], Math.min(pairs[i + 1], sample.length()));
-                addSelectionFromEditor();
-            }
-        }
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return;
+        CharSequence shared = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+        if (shared != null && shared.length() > 0) editor.setText(shared);
     }
 
     // ------------------------------------------------------------------
@@ -760,11 +783,13 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * A pill that reflects and flips one persisted boolean option. Extends
-     * {@link android.widget.CheckedTextView} so assistive technologies read
-     * its on/off state.
+     * A pill that reflects and flips one persisted boolean option. Reports
+     * its on/off state to assistive technologies via an
+     * {@link View.AccessibilityDelegate} rather than by extending
+     * {@link android.widget.CheckedTextView}, whose built-in checkmark
+     * layout reserves lopsided space and breaks text centering.
      */
-    private final class ToggleChip extends android.widget.CheckedTextView {
+    private final class ToggleChip extends TextView {
         private final String key;
         private final boolean defaultOn;
 
@@ -779,8 +804,17 @@ public class MainActivity extends Activity {
             setGravity(Gravity.CENTER);
             setMinimumWidth(dp(46));
             setMinimumHeight(dp(38));
-            setCheckMarkDrawable(null);
             setContentDescription(accessibilityDescription);
+            setTooltipText(accessibilityDescription);
+            setAccessibilityDelegate(new View.AccessibilityDelegate() {
+                @Override
+                public void onInitializeAccessibilityNodeInfo(View host,
+                        android.view.accessibility.AccessibilityNodeInfo info) {
+                    super.onInitializeAccessibilityNodeInfo(host, info);
+                    info.setCheckable(true);
+                    info.setChecked(isOn());
+                }
+            });
             setOnClickListener(v -> {
                 persistOption(key, !isOn());
                 sync();
@@ -798,7 +832,6 @@ public class MainActivity extends Activity {
 
         void sync() {
             boolean on = isOn();
-            setChecked(on);
             if (on) {
                 setBackground(rounded(CYAN, 20));
                 setTextColor(BG);
@@ -812,9 +845,12 @@ public class MainActivity extends Activity {
     /**
      * A pill that picks one of the ready-to-use output formats. Unlike
      * {@link ToggleChip} the choices are exclusive, so selecting one clears
-     * its siblings; the choice is persisted and survives restarts.
+     * its siblings; the choice is persisted and survives restarts. Reports
+     * its selected state via an {@link View.AccessibilityDelegate} rather
+     * than by extending {@link android.widget.CheckedTextView} — see
+     * {@link ToggleChip} for why.
      */
-    private final class FormatChip extends android.widget.CheckedTextView {
+    private final class FormatChip extends TextView {
         private final String format;
 
         FormatChip(LinearLayout row, String symbol, String accessibilityDescription,
@@ -825,10 +861,20 @@ public class MainActivity extends Activity {
             setTextSize(13);
             setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
             setGravity(Gravity.CENTER);
+            setPadding(dp(14), 0, dp(14), 0);
             setMinimumWidth(dp(52));
             setMinimumHeight(dp(32));
-            setCheckMarkDrawable(null);
             setContentDescription(accessibilityDescription);
+            setTooltipText(accessibilityDescription);
+            setAccessibilityDelegate(new View.AccessibilityDelegate() {
+                @Override
+                public void onInitializeAccessibilityNodeInfo(View host,
+                        android.view.accessibility.AccessibilityNodeInfo info) {
+                    super.onInitializeAccessibilityNodeInfo(host, info);
+                    info.setCheckable(true);
+                    info.setChecked(isCurrent());
+                }
+            });
             setOnClickListener(v -> {
                 prefs().edit().putString("output_format", format).apply();
                 for (FormatChip chip : formatChips) chip.sync();
@@ -846,7 +892,6 @@ public class MainActivity extends Activity {
 
         void sync() {
             boolean selected = isCurrent();
-            setChecked(selected);
             if (selected) {
                 setBackground(rounded(PURPLE, 16));
                 setTextColor(BG);
