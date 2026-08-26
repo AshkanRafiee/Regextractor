@@ -1,0 +1,8 @@
+# Normalize all text files to LF on commit
+* text=auto eol=lf
+
+# Binary files must not be modified
+*.png binary
+*.jar binary
+*.jks binary
+*.keystore binary
