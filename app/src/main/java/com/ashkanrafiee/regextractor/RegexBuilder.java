@@ -151,6 +151,14 @@ public final class RegexBuilder {
             min = Math.min(min, other.min);
             max = Math.max(max, other.max);
         }
+
+        /** Independent copy so widening a merge attempt never mutates the source tokenization. */
+        Token copy() {
+            Token clone = new Token(kind, literal, min);
+            clone.max = max;
+            clone.letterCase = letterCase;
+            return clone;
+        }
     }
 
     private static int classify(char c) {
@@ -196,18 +204,29 @@ public final class RegexBuilder {
      * Merges shapes that share one run layout into tokens with widened
      * count ranges; returns null when layouts differ (caller falls back to
      * an alternation).
+     *
+     * <p>Compatibility is checked for every position before anything is
+     * widened, and widening always operates on a {@link Token#copy()} of the
+     * first shape's token. That keeps the original {@code shapes} lists
+     * immutable, so a failed merge attempt can never leak partially-widened
+     * state (e.g. a case flattened to mixed) into the per-example alternation
+     * that the caller falls back to.</p>
      */
     private static List<Token> tryMerge(List<List<Token>> shapes) {
         int size = shapes.get(0).size();
         for (List<Token> shape : shapes) if (shape.size() != size) return null;
 
-        List<Token> merged = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             Token first = shapes.get(0).get(i);
             for (List<Token> shape : shapes)
                 if (!shape.get(i).sameClass(first)) return null;
-            for (List<Token> shape : shapes) first.widen(shape.get(i));
-            merged.add(first);
+        }
+
+        List<Token> merged = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            Token widened = shapes.get(0).get(i).copy();
+            for (List<Token> shape : shapes) widened.widen(shape.get(i));
+            merged.add(widened);
         }
         return merged;
     }

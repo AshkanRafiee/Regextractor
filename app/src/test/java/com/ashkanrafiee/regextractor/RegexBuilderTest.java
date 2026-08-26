@@ -116,6 +116,15 @@ public class RegexBuilderTest {
     }
 
     @org.junit.Test
+    public void mergeFailureAfterMatchingPrefixDoesNotPolluteFirstBranch() {
+        // Both examples start with a 2-letter run (so tryMerge widens that
+        // position) but diverge at the literal separator, so the merge
+        // fails. The first branch must still reflect only "ab-1": its own
+        // lowercase run, not a case flattened by "AB" from the other shape.
+        assertEquals("([a-z]{2}-\\d)|([A-Z]{2}_\\d)", build("ab-1", "AB_2"));
+    }
+
+    @org.junit.Test
     public void duplicateExamplesAreIgnored() {
         assertEquals("([a-z]{3})", build("abc", "abc", "abc"));
     }
