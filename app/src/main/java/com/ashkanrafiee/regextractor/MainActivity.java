@@ -56,6 +56,11 @@ public class MainActivity extends Activity {
     private static final int MAX_SHOWN_MATCHES = 100;
     private static final long UPDATE_DELAY_MS = 150;
 
+    /** Ready-to-paste output forms for the generated pattern. */
+    private static final String FORMAT_PATTERN = "pattern";
+    private static final String FORMAT_JAVASCRIPT = "javascript";
+    private static final String FORMAT_JAVA_STRING = "java_string";
+
     private EditText editor;
     private final List<BackgroundColorSpan> selectionSpans = new ArrayList<>();
     private TextView selectionsHint;
@@ -66,6 +71,7 @@ public class MainActivity extends Activity {
     private LinearLayout matchesList;
     private ToggleChip chipCase, chipMultiline, chipDotAll, chipGlobal;
     private Switch namedGroupsSwitch;
+    private final List<FormatChip> formatChips = new ArrayList<>();
 
     private String currentPattern;
     private final android.os.Handler handler =
@@ -253,7 +259,28 @@ public class MainActivity extends Activity {
         resultCard.setBackground(rounded(CARD_ALT, 15));
         resultCard.setPadding(dp(14), dp(12), dp(14), dp(14));
 
-        resultCard.addView(sectionLabel("PATTERN"));
+        LinearLayout patternHeader = new LinearLayout(this);
+        patternHeader.setGravity(Gravity.BOTTOM);
+        patternHeader.addView(sectionLabel("PATTERN"));
+        TextView formatHint = text("ready to use as:", 11, MUTED);
+        int pad = dp(4);
+        formatHint.setPadding(pad, 0, pad, dp(8));
+        formatHint.setContentDescription("Output format");
+        patternHeader.addView(formatHint);
+        resultCard.addView(patternHeader, margin(0, 0, 0, 2));
+
+        HorizontalScrollView formatStrip = new HorizontalScrollView(this);
+        formatStrip.setHorizontalScrollBarEnabled(false);
+        LinearLayout formats = new LinearLayout(this);
+        formatChips.add(new FormatChip(formats, "Plain", "Plain regular expression",
+                FORMAT_PATTERN));
+        formatChips.add(new FormatChip(formats, "/\u2026/", "JavaScript literal",
+                FORMAT_JAVASCRIPT));
+        formatChips.add(new FormatChip(formats, "\u201C\u2026\u201D", "Java or Kotlin string literal",
+                FORMAT_JAVA_STRING));
+        formatStrip.addView(formats);
+        resultCard.addView(formatStrip, margin(0, 0, 0, 8));
+
         patternView = new TextView(this);
         patternView.setTypeface(Typeface.MONOSPACE);
         patternView.setTextSize(14);
@@ -410,8 +437,26 @@ public class MainActivity extends Activity {
         currentPattern = RegexBuilder.build(examples, options);
 
         resultCard.setVisibility(View.VISIBLE);
-        patternView.setText(currentPattern);
+        patternView.setText(formattedPattern());
         refreshMatches(options);
+    }
+
+    /** The raw pattern rendered in whichever ready-to-paste form is selected. */
+    private String formattedPattern() {
+        if (currentPattern == null) return null;
+        switch (outputFormat()) {
+            case FORMAT_JAVASCRIPT:
+                return RegexBuilder.toJavascriptLiteral(currentPattern,
+                        prefs().getBoolean("global", true));
+            case FORMAT_JAVA_STRING:
+                return RegexBuilder.toJavaStringLiteral(currentPattern);
+            default:
+                return currentPattern;
+        }
+    }
+
+    private String outputFormat() {
+        return prefs().getString("output_format", FORMAT_PATTERN);
     }
 
     private RegexBuilder.Options optionsFromState() {
@@ -548,14 +593,14 @@ public class MainActivity extends Activity {
     }
 
     private void copyPattern() {
-        copyText(currentPattern);
+        copyText(formattedPattern());
         toast("Pattern copied");
     }
 
     private void sharePattern() {
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
-        send.putExtra(Intent.EXTRA_TEXT, currentPattern);
+        send.putExtra(Intent.EXTRA_TEXT, formattedPattern());
         startActivity(Intent.createChooser(send, "Share pattern"));
     }
 
@@ -644,6 +689,7 @@ public class MainActivity extends Activity {
         chipDotAll.sync();
         chipGlobal.sync();
         namedGroupsSwitch.setChecked(prefs().getBoolean("named_groups", false));
+        for (FormatChip chip : formatChips) chip.sync();
     }
 
     private void persistOption(String key, boolean value) {
@@ -758,6 +804,54 @@ public class MainActivity extends Activity {
                 setTextColor(BG);
             } else {
                 setBackground(outlined(CARD_ALT, 20, MUTED));
+                setTextColor(MUTED);
+            }
+        }
+    }
+
+    /**
+     * A pill that picks one of the ready-to-use output formats. Unlike
+     * {@link ToggleChip} the choices are exclusive, so selecting one clears
+     * its siblings; the choice is persisted and survives restarts.
+     */
+    private final class FormatChip extends android.widget.CheckedTextView {
+        private final String format;
+
+        FormatChip(LinearLayout row, String symbol, String accessibilityDescription,
+                   String format) {
+            super(MainActivity.this);
+            this.format = format;
+            setText(symbol);
+            setTextSize(13);
+            setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+            setGravity(Gravity.CENTER);
+            setMinimumWidth(dp(52));
+            setMinimumHeight(dp(32));
+            setCheckMarkDrawable(null);
+            setContentDescription(accessibilityDescription);
+            setOnClickListener(v -> {
+                prefs().edit().putString("output_format", format).apply();
+                for (FormatChip chip : formatChips) chip.sync();
+                updateNow();
+            });
+            sync();
+            LinearLayout.LayoutParams layout = new LinearLayout.LayoutParams(-2, -2);
+            layout.rightMargin = dp(8);
+            row.addView(this, layout);
+        }
+
+        boolean isCurrent() {
+            return outputFormat().equals(format);
+        }
+
+        void sync() {
+            boolean selected = isCurrent();
+            setChecked(selected);
+            if (selected) {
+                setBackground(rounded(PURPLE, 16));
+                setTextColor(BG);
+            } else {
+                setBackground(outlined(CARD, 16, CARD_ALT));
                 setTextColor(MUTED);
             }
         }

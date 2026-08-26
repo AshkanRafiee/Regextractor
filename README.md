@@ -14,6 +14,10 @@ of every match.
 - Case-aware letter classes by default; an *Aa* toggle flattens them to
   `[A-Za-z]` with an inline `(?i)`
 - Live match preview over the sample text — tap any match to copy it
+- Ready to use out of the box: every pattern captures its content in
+  group 1 (named groups optional), so extraction works right after pasting
+- Copy-ready output forms: plain pattern, JavaScript literal (`/…/g`)
+  or quoted Java/Kotlin string literal (`"\\d{4}"`)
 - Toggles for case-insensitive, multiline, dot-matches-all and find-all
 - Optional named capture groups with content-based names
 - Sample presets (log lines, dates, emails, prices, IDs)

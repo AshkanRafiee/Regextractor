@@ -24,69 +24,69 @@ public class RegexBuilderTest {
 
     @org.junit.Test
     public void lettersBecomeClassRuns() {
-        assertEquals("[a-z]", build("a"));
-        assertEquals("[a-z]{5}", build("hello"));
-        assertEquals("[A-Z]{3}", build("ABC"));
-        assertEquals("[A-Za-z]{10}", build("HelloWorld")); // mixed case in one run
+        assertEquals("([a-z])", build("a"));
+        assertEquals("([a-z]{5})", build("hello"));
+        assertEquals("([A-Z]{3})", build("ABC"));
+        assertEquals("([A-Za-z]{10})", build("HelloWorld")); // mixed case in one run
     }
 
     @org.junit.Test
     public void digitsBecomeDigitRuns() {
-        assertEquals("\\d", build("7"));
-        assertEquals("\\d{5}", build("12345"));
+        assertEquals("(\\d)", build("7"));
+        assertEquals("(\\d{5})", build("12345"));
     }
 
     @org.junit.Test
     public void whitespaceBecomesSpaceClass() {
-        assertEquals("\\s", build(" "));
-        assertEquals("\\s{4}", build("    "));
-        assertEquals("\\s{3}", build("\t\n "));
+        assertEquals("(\\s)", build(" "));
+        assertEquals("(\\s{4})", build("    "));
+        assertEquals("(\\s{3})", build("\t\n "));
     }
 
     @org.junit.Test
     public void mixedClassesConcatenate() {
-        assertEquals("[a-z]{3}\\d{3}", build("abc123"));
-        assertEquals("\\d{4}-\\d{2}-\\d{2}", build("2024-01-15"));
-        assertEquals("[a-z]{3}\\s[a-z]{3}", build("abc def"));
+        assertEquals("([a-z]{3}\\d{3})", build("abc123"));
+        assertEquals("(\\d{4}-\\d{2}-\\d{2})", build("2024-01-15"));
+        assertEquals("([a-z]{3}\\s[a-z]{3})", build("abc def"));
     }
 
     @org.junit.Test
     public void caseInsensitiveFlattensLetterClasses() {
         RegexBuilder.Options options = new RegexBuilder.Options();
         options.caseInsensitive = true;
-        assertEquals("(?i)[A-Za-z]{6}:\\s[A-Za-z]{2}",
+        assertEquals("(?i)([A-Za-z]{6}:\\s[A-Za-z]{2})",
                 RegexBuilder.build(Collections.singletonList("Status: OK"), options));
-        assertEquals("(?i)[A-Za-z]{5}",
+        assertEquals("(?i)([A-Za-z]{5})",
                 RegexBuilder.build(Collections.singletonList("hello"), options));
     }
 
     @org.junit.Test
     public void mixedCaseRunsMergeToCommonCase() {
-        assertEquals("[A-Za-z]{3,5};", build("Alice;", "bob;"));
+        assertEquals("([A-Za-z]{3,5};)", build("Alice;", "bob;"));
     }
 
     @org.junit.Test
     public void metacharactersAreEscaped() {
         String specials = "\\.^$|?*+()[]{}";
-        StringBuilder expected = new StringBuilder();
-        for (char c : specials.toCharArray()) expected.append('\\').append(c);
-        assertEquals(expected.toString(), build(specials));
-        assertEquals("<>", build("<>"));
-        assertEquals("&=", build("&="));
+        StringBuilder inner = new StringBuilder();
+        for (char c : specials.toCharArray()) inner.append('\\').append(c);
+        assertEquals("(" + inner + ")", build(specials));
+        assertEquals("(<>)", build("<>"));
+        assertEquals("(&=)", build("&="));
     }
 
     @org.junit.Test
     public void controlCharactersMatchAsWhitespace() {
-        assertEquals("\\s", build("\n"));
-        assertEquals("\\s", build("\t"));
-        assertEquals("\\s{2}", build("\r\n"));
-        assertEquals("[a-z]\\s[a-z]", build("a\nb"));
+        assertEquals("(\\s)", build("\n"));
+        assertEquals("(\\s)", build("\t"));
+        assertEquals("(\\s{2})", build("\r\n"));
+        assertEquals("([a-z]\\s[a-z])", build("a\nb"));
     }
 
     @org.junit.Test
     public void nonAsciiCharactersMatchLiterally() {
-        assertEquals("\u0633\u0644\u0627\u0645", build("\u0633\u0644\u0627\u0645")); // Persian "salaam"
-        assertEquals("\u20AC\\d", build("\u20AC9")); // € followed by a digit
+        assertEquals("(\u0633\u0644\u0627\u0645)", build("\u0633\u0644\u0627\u0645")); // Persian "salaam"
+        assertEquals("(\u20AC\\d)", build("\u20AC9")); // € followed by a digit
     }
 
     // ------------------------------------------------------------------
@@ -94,36 +94,36 @@ public class RegexBuilderTest {
 
     @org.junit.Test
     public void identicalShapesWidenCounts() {
-        assertEquals("\\d{4}-\\d{2}-\\d{2}",
+        assertEquals("(\\d{4}-\\d{2}-\\d{2})",
                 build("2024-01-15", "1999-12-31"));
     }
 
     @org.junit.Test
     public void differingRunLengthsProduceRanges() {
-        assertEquals("[a-z]{3,5};", build("alice;", "bob;"));
-        assertEquals("\\d{1,3}", build("1", "22", "333"));
+        assertEquals("([a-z]{3,5};)", build("alice;", "bob;"));
+        assertEquals("(\\d{1,3})", build("1", "22", "333"));
     }
 
     @org.junit.Test
     public void threeExamplesMergeTogether() {
-        assertEquals("[a-z]{2,5}:\\s\\d{1,4}",
+        assertEquals("([a-z]{2,5}:\\s\\d{1,4})",
                 build("id: 42", "order: 7", "user: 2024"));
     }
 
     @org.junit.Test
     public void incompatibleShapesFallBackToAlternation() {
-        assertEquals("(?:[a-z]{5})|(?:\\d{3})", build("hello", "123"));
+        assertEquals("([a-z]{5})|(\\d{3})", build("hello", "123"));
     }
 
     @org.junit.Test
     public void duplicateExamplesAreIgnored() {
-        assertEquals("[a-z]{3}", build("abc", "abc", "abc"));
+        assertEquals("([a-z]{3})", build("abc", "abc", "abc"));
     }
 
     @org.junit.Test
     public void nullAndEmptyExamplesAreDropped() {
         List<String> messy = Arrays.asList(null, "", "ok", null);
-        assertEquals("[a-z]{2}", RegexBuilder.build(messy, new RegexBuilder.Options()));
+        assertEquals("([a-z]{2})", RegexBuilder.build(messy, new RegexBuilder.Options()));
     }
 
     // ------------------------------------------------------------------
@@ -175,7 +175,65 @@ public class RegexBuilderTest {
     public void flagsPrependToPattern() {
         RegexBuilder.Options options = new RegexBuilder.Options();
         options.caseInsensitive = true;
-        assertEquals("(?i)[A-Za-z]{3}", RegexBuilder.build(Collections.singletonList("abc"), options));
+        assertEquals("(?i)([A-Za-z]{3})", RegexBuilder.build(Collections.singletonList("abc"), options));
+    }
+
+    // ------------------------------------------------------------------
+    // Ready-to-use output: capture groups and paste-ready forms
+
+    @org.junit.Test
+    public void wholePatternIsCapturedForExtraction() {
+        Pattern dates = Pattern.compile(build("2024-01-15", "2023-12-08"));
+        java.util.regex.Matcher matcher = dates.matcher("due 2023-12-08 ok");
+        assertTrue(matcher.find());
+        assertEquals("2023-12-08", matcher.group(1));
+    }
+
+    @org.junit.Test
+    public void eachAlternationBranchCapturesItsMatch() {
+        Pattern both = Pattern.compile(build("hello", "123"));
+        java.util.regex.Matcher matcher = both.matcher("say hello then 123");
+        assertTrue(matcher.find());
+        assertEquals("hello", matcher.group(1));
+        assertEquals(null, matcher.group(2)); // other branch not involved
+        assertTrue(matcher.find());
+        assertEquals("123", matcher.group(2));
+        assertEquals(null, matcher.group(1));
+    }
+
+    @org.junit.Test
+    public void javascriptLiteralMovesFlagsToSuffix() {
+        assertEquals("/\\d{4}/g", RegexBuilder.toJavascriptLiteral("\\d{4}", true));
+        assertEquals("/\\d{4}/", RegexBuilder.toJavascriptLiteral("\\d{4}", false));
+        assertEquals("/[a-z]+/im", RegexBuilder.toJavascriptLiteral("(?im)[a-z]+", false));
+        assertEquals("/(?<word1>[a-z]+)/g", RegexBuilder.toJavascriptLiteral("(?<word1>[a-z]+)", true));
+    }
+
+    @org.junit.Test
+    public void javascriptLiteralEscapesSlashesFromUserText() {
+        assertEquals("/https:\\/\\/example.com/g",
+                RegexBuilder.toJavascriptLiteral("https://example.com", true));
+        assertEquals("/https:\\/\\/example.com/i",
+                RegexBuilder.toJavascriptLiteral("(?i)https://example.com", false));
+        // the produced literal has exactly two unescaped delimiters
+        String literal = RegexBuilder.toJavascriptLiteral("a/b(?i)c/d", true);
+        assertEquals(2, literal.length() - literal.replace("/", "").length()
+                - countOccurrences(literal, "\\/"));
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        for (int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + 1)) count++;
+        return count;
+    }
+
+    @org.junit.Test
+    public void javaStringLiteralEscapesBackslashesAndQuotes() {
+        // pattern \d{4} becomes the source text "\d{4}" including quotes
+        assertEquals("\"\\\\d{4}\"", RegexBuilder.toJavaStringLiteral("\\d{4}"));
+        // embedded quotes and backslashes survive a paste into Java/Kotlin source
+        assertEquals("\"he said \\\"hi\\\" \\\\d\"",
+                RegexBuilder.toJavaStringLiteral("he said \"hi\" \\d"));
     }
 
     // ------------------------------------------------------------------

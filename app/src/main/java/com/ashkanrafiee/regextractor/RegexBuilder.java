@@ -17,6 +17,11 @@ import java.util.Set;
  * into ranges ({@code {min,max}}), while incompatible shapes fall back to
  * an alternation of the individual patterns.</p>
  *
+ * <p>The result is always ready to use for extraction: the matched content
+ * lands in group 1 (each alternation branch in its own group), or in a
+ * named group when {@link Options#namedGroups} is set. Helpers convert the
+ * pattern into JavaScript literal or quoted string-literal form.</p>
+ *
  * <p>This class is pure Java with no Android dependencies so it can be unit
  * tested on the JVM.</p>
  */
@@ -58,10 +63,12 @@ public final class RegexBuilder {
         List<Token> merged = tryMerge(shapes);
         String body;
         if (merged != null) {
-            body = render(merged, options);
-            if (options.namedGroups) {
-                body = "(?<" + groupNameFor(unique.get(0), 1) + ">" + body + ")";
-            }
+            String rendered = render(merged, options);
+            // Capture by default so matcher.group(1) yields the extracted
+            // content straight away; named mode supplies its own group.
+            body = options.namedGroups
+                    ? "(?<" + groupNameFor(unique.get(0), 1) + ">" + rendered + ")"
+                    : "(" + rendered + ")";
         } else {
             StringBuilder alternation = new StringBuilder();
             for (int i = 0; i < shapes.size(); i++) {
@@ -69,11 +76,43 @@ public final class RegexBuilder {
                 String part = render(shapes.get(i), options);
                 alternation.append(options.namedGroups
                         ? "(?<" + groupNameFor(unique.get(i), i + 1) + ">" + part + ")"
-                        : "(?:" + part + ")");
+                        : "(" + part + ")");
             }
             body = alternation.toString();
         }
         return options.flagPrefix() + body;
+    }
+
+    /**
+     * Converts a pattern into a JavaScript regular expression literal such
+     * as {@code /\d{4}/gi}: inline flags move to the suffix, slashes from
+     * matched text are escaped, and {@code g} is appended when requested.
+     */
+    public static String toJavascriptLiteral(String pattern, boolean global) {
+        String flags = "";
+        String body = pattern;
+        if (pattern.startsWith("(?")) {
+            int i = 2;
+            while (i < pattern.length() && isInlineFlag(pattern.charAt(i))) i++;
+            if (i > 2 && i < pattern.length() && pattern.charAt(i) == ')') {
+                flags = pattern.substring(2, i);
+                body = pattern.substring(i + 1);
+            }
+        }
+        if (global) flags = flags + 'g';
+        return "/" + body.replace("/", "\\/") + "/" + flags;
+    }
+
+    /**
+     * Quotes a pattern as a Java/Kotlin string literal, doubling backslashes
+     * and escaping quotes so it can be pasted into source unchanged.
+     */
+    public static String toJavaStringLiteral(String pattern) {
+        return '"' + pattern.replace("\\", "\\\\").replace("\"", "\\\"") + '"';
+    }
+
+    private static boolean isInlineFlag(char c) {
+        return c == 'i' || c == 'm' || c == 's';
     }
 
     // ------------------------------------------------------------------

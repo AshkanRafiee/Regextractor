@@ -5,9 +5,10 @@ Paste or type any sample text, highlight the parts you want to capture, and the 
 Features:
 - Infer regex from one or many highlighted examples
 - Smart generalization of letters, digits, whitespace and literal characters, including case-aware letter classes
+- Ready to use out of the box: matches land in group 1 (named groups optional), so extraction works right after pasting
+- Copy-ready output forms: plain pattern, JavaScript literal or quoted Java/Kotlin string literal
 - Live preview listing every match in your text; tap a match to copy it
 - Toggle case-insensitive, multiline, dot-matches-all and find-all behavior
-- Optional named capture groups with content-based names
 - One-tap sample presets (log lines, dates, emails, prices, IDs)
 - Share any text into the app from other apps to extract from it
 - Copy or share the finished pattern
