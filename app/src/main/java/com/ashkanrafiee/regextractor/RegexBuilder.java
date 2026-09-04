@@ -1,6 +1,7 @@
 package com.ashkanrafiee.regextractor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -104,10 +105,16 @@ public final class RegexBuilder {
      * alternation exactly like the precise path does.</p>
      */
     private static String buildBroad(List<String> examples, Options options) {
-        // All soft punctuation found in any example is allowed inside every
-        // flexible word class. That way "john" (no dot) still matches
-        // "jane.doe" because the dot seen in "example.com" opens the class.
+        // The universal word-joiners '.' '-' and '_' are always allowed inside
+        // every flexible class: they are standard characters of emails, IDs,
+        // filenames and compound words, so "all emails" must still capture
+        // "first-last@x.com" even when no selected example contained a hyphen.
+        // Rarer separators (',', '%', '+', '$') stay witnessed-only so numbers
+        // and prices keep their boundaries.
         Set<Character> softChars = new HashSet<>();
+        softChars.add('.');
+        softChars.add('-');
+        softChars.add('_');
         for (String example : examples) {
             for (int k = 0; k < example.length(); k++) {
                 char c = example.charAt(k);
@@ -221,21 +228,28 @@ public final class RegexBuilder {
                 cls.append(hasLower || hasUpper ? "A-Za-z" : "");
             }
             if (hasDigit) cls.append("0-9");
-            for (char c : softChars) cls.append(inClassEscape(c));
+            List<Character> softs = new ArrayList<>(softChars);
+            Collections.sort(softs);
+            for (char c : softs) cls.append(inClassEscape(c));
             String klass = "[" + cls + "]";
 
-            // Guard against pure-letter matches when the unit itself carried a
-            // digit: an ID like "user-101" must find "team-42" and "repo-7"
-            // but not the plain words "signed", "up" or "merged". A unit that
-            // only contains letters and soft punctuation (an email local part
-            // like "jane.doe") must stay unguarded so a pure-word member such
-            // as "john" can still match.
+            // A flexible unit full of only punctuation (a list dash before a
+            // price, a stray dot) is not an occurrence, so whenever the class
+            // admits soft punctuation the match must still contain at least
+            // one letter or digit.
             String guard = "";
+            boolean hasAnyAlnum = hasUpper || hasLower || hasDigit;
+            if (hasAnyAlnum && !softs.isEmpty()) {
+                guard += "(?=" + klass + "*[A-Za-z0-9])";
+            }
+            // And a unit that itself carried a digit keeps the stricter
+            // requirement, so an ID like "user-101" finds "team-42" and
+            // "repo-7" but not the plain words "signed", "up" or "merged".
             if (hasDigit && (hasUpper || hasLower)) {
                 StringBuilder need = new StringBuilder();
                 if (hasDigit) need.append("0-9");
                 for (char c : unitSofts) need.append(inClassEscape(c));
-                guard = "(?=" + klass + "*[" + need + "])";
+                guard += "(?=" + klass + "*[" + need + "])";
             }
 
             out.append(guard).append(klass).append("{1,}");

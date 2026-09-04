@@ -94,6 +94,30 @@ public class BroadMatchTest {
         }
     }
 
+    @org.junit.Test
+    public void singleEmailFindsHyphenatedAndUnderscoredLocalParts() {
+        // A hyphen or underscore in the local part is a standard email
+        // character, so "all emails" must capture it fully — not truncate it
+        // at the '-' and steal the tail, and not require the user to select
+        // a hyphenated example first.
+        String text = "Contact john@example.com for details\n"
+                + "or write to jane.doe@example.org instead.\n"
+                + "asomasdm@teasd.com\n"
+                + "manbsmfnbamsdf.sadbasjahsdf@test.com\n"
+                + "kjhasdkfjhaksjdf-ajhsdgf@test.com\n"
+                + "first_last@mail.example";
+        String pattern = build("john@example.com");
+        assertCompiles(pattern);
+        Matcher matcher = Pattern.compile(pattern).matcher(text);
+        java.util.List<String> hits = new java.util.ArrayList<>();
+        while (matcher.find()) hits.add(matcher.group(1));
+        assertEquals(6, hits.size());
+        assertTrue("full hyphenated local part must be captured, was '" + hits.get(4) + "'",
+                hits.get(4).equals("kjhasdkfjhaksjdf-ajhsdgf@test.com"));
+        assertTrue("full underscored local part must be captured, was '" + hits.get(5) + "'",
+                hits.get(5).equals("first_last@mail.example"));
+    }
+
     // ------------------------------------------------------------------
     // Other categories (generic broad behavior)
     // ------------------------------------------------------------------
