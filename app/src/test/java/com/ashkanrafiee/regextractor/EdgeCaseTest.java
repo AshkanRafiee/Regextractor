@@ -313,9 +313,9 @@ public class EdgeCaseTest {
         assertEquals("(?<number1>\\d{2})", build("42", options(false, true, false, false, false)));
         assertEquals("(?<word1>[a-z]{3})", build("abc", options(false, true, false, false, false)));
         assertEquals("(?<value1>[a-z]\\d)", build("a1", options(false, true, false, false, false)));
-        assertEquals("(?<number1>(?=[0-9\\-._]*[A-Za-z0-9])[0-9\\-._]{1,})", build("31415", options(true, true, false, false, false)));
-        assertEquals("(?<value1>(?=[0-9\\-._]*[A-Za-z0-9])[0-9\\-._]{1,})", build("3.14", options(true, true, false, false, false)));
-        assertEquals("(?<word1>(?=[a-z\\-._]*[A-Za-z0-9])[a-z\\-._]{1,})", build("hello", options(true, true, false, false, false)));
+        assertEquals("(?<number1>(?=[0-9+\\-._]*[A-Za-z0-9])[0-9+\\-._]{1,})", build("31415", options(true, true, false, false, false)));
+        assertEquals("(?<value1>(?=[0-9+\\-._]*[A-Za-z0-9])[0-9+\\-._]{1,})", build("3.14", options(true, true, false, false, false)));
+        assertEquals("(?<word1>(?=[a-z+\\-._]*[A-Za-z0-9])[a-z+\\-._]{1,})", build("hello", options(true, true, false, false, false)));
     }
 
     @org.junit.Test

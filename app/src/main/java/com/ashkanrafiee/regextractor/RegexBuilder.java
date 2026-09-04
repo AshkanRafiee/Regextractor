@@ -105,16 +105,18 @@ public final class RegexBuilder {
      * alternation exactly like the precise path does.</p>
      */
     private static String buildBroad(List<String> examples, Options options) {
-        // The universal word-joiners '.' '-' and '_' are always allowed inside
-        // every flexible class: they are standard characters of emails, IDs,
-        // filenames and compound words, so "all emails" must still capture
-        // "first-last@x.com" even when no selected example contained a hyphen.
-        // Rarer separators (',', '%', '+', '$') stay witnessed-only so numbers
-        // and prices keep their boundaries.
+        // The universal word-joiners '.' '-' '_' and '+' are always allowed
+        // inside every flexible class: they are standard characters of emails
+        // (plus-addressing), IDs, filenames and compound words, so "all
+        // emails" must still capture "first-last@x.com" or "tag+extra@x.com"
+        // even when no selected example contained them. Rarer separators
+        // (',', '%', '$') stay witnessed-only so prose commas, percentages
+        // and price prefixes keep their boundaries.
         Set<Character> softChars = new HashSet<>();
         softChars.add('.');
         softChars.add('-');
         softChars.add('_');
+        softChars.add('+');
         for (String example : examples) {
             for (int k = 0; k < example.length(); k++) {
                 char c = example.charAt(k);

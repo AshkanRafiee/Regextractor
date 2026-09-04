@@ -96,26 +96,51 @@ public class BroadMatchTest {
 
     @org.junit.Test
     public void singleEmailFindsHyphenatedAndUnderscoredLocalParts() {
-        // A hyphen or underscore in the local part is a standard email
-        // character, so "all emails" must capture it fully — not truncate it
-        // at the '-' and steal the tail, and not require the user to select
-        // a hyphenated example first.
+        // Hyphen, underscore or plus in the local part are standard email
+        // characters, so "all emails" must capture them fully — not truncate
+        // at the joiner and steal the tail, and not require the user to select
+        // a joined example first.
         String text = "Contact john@example.com for details\n"
                 + "or write to jane.doe@example.org instead.\n"
                 + "asomasdm@teasd.com\n"
                 + "manbsmfnbamsdf.sadbasjahsdf@test.com\n"
                 + "kjhasdkfjhaksjdf-ajhsdgf@test.com\n"
-                + "first_last@mail.example";
+                + "kjhasdkfjhaksjdf_ajhsdgf@test.com\n"
+                + "kjhasdkfjhaksjdf+ajhsdgf@test.com";
         String pattern = build("john@example.com");
         assertCompiles(pattern);
         Matcher matcher = Pattern.compile(pattern).matcher(text);
         java.util.List<String> hits = new java.util.ArrayList<>();
         while (matcher.find()) hits.add(matcher.group(1));
-        assertEquals(6, hits.size());
+        assertEquals(7, hits.size());
         assertTrue("full hyphenated local part must be captured, was '" + hits.get(4) + "'",
                 hits.get(4).equals("kjhasdkfjhaksjdf-ajhsdgf@test.com"));
         assertTrue("full underscored local part must be captured, was '" + hits.get(5) + "'",
-                hits.get(5).equals("first_last@mail.example"));
+                hits.get(5).equals("kjhasdkfjhaksjdf_ajhsdgf@test.com"));
+        assertTrue("full plus-addressed local part must be captured, was '" + hits.get(6) + "'",
+                hits.get(6).equals("kjhasdkfjhaksjdf+ajhsdgf@test.com"));
+    }
+
+    @org.junit.Test
+    public void hardDelimitersStayOutsideTheEmail() {
+        // '/' and '(' are not email characters: a slash path after an email
+        // is excluded, and a slash or paren jammed into a local part means the
+        // real email is the tail after it — never an over-extended merge.
+        String text = "kjhasdkfjhaksjdf-ajhsdgf@test.com/asdfasdf\n"
+                + "kjhasdkfjhaksjdf/ajhsdgf@test.com\n"
+                + "kjhasdkfjhaksjdf(ajhsdgf@test.com";
+        String pattern = build("john@example.com");
+        assertCompiles(pattern);
+        Matcher matcher = Pattern.compile(pattern).matcher(text);
+        java.util.List<String> hits = new java.util.ArrayList<>();
+        while (matcher.find()) hits.add(matcher.group(1));
+        assertEquals(3, hits.size());
+        assertTrue("path suffix must be excluded, was '" + hits.get(0) + "'",
+                hits.get(0).equals("kjhasdkfjhaksjdf-ajhsdgf@test.com"));
+        assertTrue("slash prefix must not merge, was '" + hits.get(1) + "'",
+                hits.get(1).equals("ajhsdgf@test.com"));
+        assertTrue("paren prefix must not merge, was '" + hits.get(2) + "'",
+                hits.get(2).equals("ajhsdgf@test.com"));
     }
 
     // ------------------------------------------------------------------
