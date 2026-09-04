@@ -308,4 +308,53 @@ public class BroadMatchTest {
         assertCompiles(pattern);
         assertEquals(4, count(pattern, EMAILS));
     }
+
+    // ------------------------------------------------------------------
+    // Special characters other than the soft joiners are hard anchors
+    // ------------------------------------------------------------------
+
+    @org.junit.Test
+    public void hashStaysAnAnchorAndKeepsTheDigitGuard() {
+        // "#tag42" must find "#tag7" but not a digit-free "#tag".
+        String pattern = build("#tag42");
+        assertCompiles(pattern);
+        assertEquals(2, count(pattern, "#tag42 and #tag7 but #tag alone"));
+    }
+
+    @org.junit.Test
+    public void starCurlsAreHardAnchors() {
+        // Selecting "*bold*" generalizes the inner word only, and the
+        // literal '*' must be regex-escaped.
+        String pattern = build("*bold*");
+        assertCompiles(pattern);
+        assertTrue(pattern.contains("\\*"));
+        assertEquals(2, count(pattern, "*bold* and *italic* but not bold"));
+    }
+
+    @org.junit.Test
+    public void questionMarkIsEscapedAndAnchored() {
+        // "what?" is the shape word+'?', so it finds "never?" too — this is
+        // broad generalization at work; the literal '?' is regex-escaped.
+        String pattern = build("what?");
+        assertCompiles(pattern);
+        assertTrue(pattern.contains("\\?"));
+        assertEquals(2, count(pattern, "what? never?"));
+    }
+
+    @org.junit.Test
+    public void apostrophePreservesWordShape() {
+        // "don't" keeps the apostrophe as a structural anchor and flexes the
+        // letters on both sides, so it matches other contractions.
+        assertEquals(2, count(build("don't"), "don't won't cant"));
+    }
+
+    @org.junit.Test
+    public void spacedOperatorsDoNotMergeAcrossWhitespace() {
+        // Whitespace is the hardest boundary: "a != b" (spaced) must not
+        // match the pattern built from "a!=b" (unspaced), and '&' must not
+        // swallow "rock & roll" into one run.
+        assertEquals(0, count(build("x|y"), "x | y"));
+        assertEquals(0, count(build("a!=b"), "a != b"));
+        assertEquals(0, count(build("A&B"), "rock & roll"));
+    }
 }
