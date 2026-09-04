@@ -251,17 +251,11 @@ public class MainActivity extends Activity {
                 "multiline", false);
         chipDotAll = new ToggleChip(toggles, ".*", "Dot also matches line breaks",
                 "dot_all", false);
-        card.addView(toggles, margin(0, 0, 0, 4));
-
-        LinearLayout broadRow = new LinearLayout(this);
-        broadRow.setGravity(Gravity.CENTER_VERTICAL);
-        chipBroad = new ToggleChip(broadRow, "\u221E", "Find every match of the same kind, e.g. all emails",
+        chipBroad = new ToggleChip(toggles, "\u221E",
+                "Find every match of the same kind, e.g. all emails, IDs and prices, "
+                        + "not just the exact selection",
                 "broad_match", false);
-        TextView broadLabel = text("All \u2014 every match of the kind, not just the exact selection "
-                + "(all emails, IDs, prices)", 12, MUTED);
-        broadLabel.setPadding(dp(4), 0, 0, 0);
-        broadRow.addView(broadLabel, new LinearLayout.LayoutParams(0, -2, 1));
-        card.addView(broadRow, margin(0, 0, 0, 6));
+        card.addView(toggles, margin(0, 0, 0, 4));
 
         LinearLayout namedRow = new LinearLayout(this);
         namedRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -839,6 +833,12 @@ public class MainActivity extends Activity {
             setMinimumHeight(dp(38));
             setContentDescription(accessibilityDescription);
             setTooltipText(accessibilityDescription);
+            setOnLongClickListener(v -> {
+                // Long press shows the description on touch screens. Consuming
+                // the event keeps the long press from doing anything else.
+                toast(accessibilityDescription);
+                return true;
+            });
             setAccessibilityDelegate(new View.AccessibilityDelegate() {
                 @Override
                 public void onInitializeAccessibilityNodeInfo(View host,
@@ -899,6 +899,12 @@ public class MainActivity extends Activity {
             setMinimumHeight(dp(32));
             setContentDescription(accessibilityDescription);
             setTooltipText(accessibilityDescription);
+            setOnLongClickListener(v -> {
+                // Hover shows the native tooltip above; long press shows the
+                // description where there is no pointer.
+                toast(accessibilityDescription);
+                return true;
+            });
             setAccessibilityDelegate(new View.AccessibilityDelegate() {
                 @Override
                 public void onInitializeAccessibilityNodeInfo(View host,
