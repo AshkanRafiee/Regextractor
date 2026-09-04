@@ -34,6 +34,15 @@ public final class RegexBuilder {
         public boolean dotAll;
         public boolean namedGroups;
 
+        /**
+         * Broad-match mode: instead of producing a pattern tuned to the
+         * exact character counts of the selected examples, generalize each
+         * word-like unit into a flexible class ({@code [a-z.]{1,}}) so that
+         * every occurrence of the same category is captured — all emails,
+         * all dates, all IDs — not just the exact selected texts.
+         */
+        public boolean broadMatch;
+
         /** Inline flag prefix such as {@code (?im)}, or "" when none apply. */
         public String flagPrefix() {
             StringBuilder flags = new StringBuilder();
@@ -56,6 +65,7 @@ public final class RegexBuilder {
     public static String build(List<String> examples, Options options) {
         List<String> unique = dedupe(examples);
         if (unique.isEmpty()) throw new IllegalArgumentException("No examples to build from");
+        if (options.broadMatch) return buildBroad(unique, options);
 
         List<List<Token>> shapes = new ArrayList<>();
         for (String example : unique) shapes.add(tokenize(example));
@@ -81,6 +91,166 @@ public final class RegexBuilder {
             body = alternation.toString();
         }
         return options.flagPrefix() + body;
+    }
+
+    /**
+     * Builds a broad, category-level pattern: word-like units collapse into
+     * flexible classes and only structural delimiters (whitespace, {@code @},
+     * {@code /}, {@code :}, {@code #}, backslash, brackets…) stay fixed, so
+     * the result matches every occurrence of the same category in the text —
+     * all emails, all dates, all prices, all IDs — regardless of exact length.
+     *
+     * <p>Examples with different delimiter layouts fall back to an
+     * alternation exactly like the precise path does.</p>
+     */
+    private static String buildBroad(List<String> examples, Options options) {
+        // All soft punctuation found in any example is allowed inside every
+        // flexible word class. That way "john" (no dot) still matches
+        // "jane.doe" because the dot seen in "example.com" opens the class.
+        Set<Character> softChars = new HashSet<>();
+        for (String example : examples) {
+            for (int k = 0; k < example.length(); k++) {
+                char c = example.charAt(k);
+                if (isSoftPunct(c)) softChars.add(c);
+            }
+        }
+
+        List<String> parts = new ArrayList<>();
+        List<String> partExamples = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String example : examples) {
+            String part = renderBroad(tokenize(example), options, softChars);
+            if (seen.add(part)) {
+                parts.add(part);
+                partExamples.add(example);
+            }
+        }
+
+        StringBuilder alternation = new StringBuilder();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) alternation.append('|');
+            String part = parts.get(i);
+            alternation.append(options.namedGroups
+                    ? "(?<" + groupNameFor(partExamples.get(i), i + 1) + ">" + part + ")"
+                    : "(" + part + ")");
+        }
+        return options.flagPrefix() + alternation;
+    }
+
+    /**
+     * Characters that commonly appear embedded inside words, usernames,
+     * prices and identifiers. In broad mode they merge into the neighbouring
+     * letter/digit run's character class instead of staying fixed.
+     */
+    private static final String SOFT_PUNCT = ".-_,%+$";
+
+    private static boolean isSoftPunct(char c) {
+        return SOFT_PUNCT.indexOf(c) >= 0;
+    }
+
+    /**
+     * Renders one example in broad mode. Runs of letters and digits are
+     * merged together with embedded soft punctuation into one flexible
+     * class, while whitespace, hard delimiters and structural punctuation
+     * survive as anchors between the flexible units.
+     *
+     * <p>A unit that originally contained a digit or a soft-punct character
+     * is guarded by a look-ahead requiring at least one of them, so that an
+     * ID like {@code user-101} finds {@code team-42} and {@code repo-7} but
+     * not the plain words {@code signed}, {@code up} or {@code merged}.</p>
+     */
+    private static String renderBroad(List<Token> tokens, Options options,
+                                      Set<Character> softChars) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        while (i < tokens.size()) {
+            Token t = tokens.get(i);
+            if (t.kind == WHITESPACE) {
+                out.append("\\s{").append(t.min).append(",}");
+                i++;
+                continue;
+            }
+            if (t.kind == LITERAL && !isSoftPunct(t.literal)) {
+                out.append(escape(t.literal));
+                if (t.max > 1) out.append('{').append(t.max).append('}');
+                i++;
+                continue;
+            }
+
+            // Merge the current LETTER / DIGIT run and any adjacent runs
+            // separated by soft punctuation into one flexible word unit.
+            boolean hasUpper = false, hasLower = false, hasDigit = false;
+            Set<Character> unitSofts = new HashSet<>();
+            int j = i;
+            while (j < tokens.size()) {
+                Token u = tokens.get(j);
+                if (u.kind == LETTER) {
+                    if (u.letterCase == CASE_MIXED) {
+                        hasUpper = true;
+                        hasLower = true;
+                    } else if (u.letterCase == CASE_UPPER) {
+                        hasUpper = true;
+                    } else {
+                        hasLower = true;
+                    }
+                } else if (u.kind == DIGIT) {
+                    hasDigit = true;
+                } else if (u.kind == LITERAL && isSoftPunct(u.literal)) {
+                    unitSofts.add(u.literal);
+                } else {
+                    break;
+                }
+                j++;
+            }
+            if (j == i) {
+                i++; // not expected; avoid infinite loop
+                continue;
+            }
+
+            // Character class for the unit: the letters seen in the original
+            // unit (or both cases when no letters), any digits, and every soft
+            // punctuation found anywhere in the selected examples.
+            StringBuilder cls = new StringBuilder();
+            if (!options.caseInsensitive && hasUpper && !hasLower) {
+                cls.append("A-Z");
+            } else if (!options.caseInsensitive && hasLower && !hasUpper) {
+                cls.append("a-z");
+            } else {
+                // Mixed case, or case-insensitive where [a-z] with inline (?i)
+                // matches both cases already.
+                cls.append(hasLower || hasUpper ? "A-Za-z" : "");
+            }
+            if (hasDigit) cls.append("0-9");
+            for (char c : softChars) cls.append(inClassEscape(c));
+            String klass = "[" + cls + "]";
+
+            // Guard against pure-letter matches when the unit itself carried a
+            // digit: an ID like "user-101" must find "team-42" and "repo-7"
+            // but not the plain words "signed", "up" or "merged". A unit that
+            // only contains letters and soft punctuation (an email local part
+            // like "jane.doe") must stay unguarded so a pure-word member such
+            // as "john" can still match.
+            String guard = "";
+            if (hasDigit && (hasUpper || hasLower)) {
+                StringBuilder need = new StringBuilder();
+                if (hasDigit) need.append("0-9");
+                for (char c : unitSofts) need.append(inClassEscape(c));
+                guard = "(?=" + klass + "*[" + need + "])";
+            }
+
+            out.append(guard).append(klass).append("{1,}");
+            i = j;
+        }
+        return out.toString();
+    }
+
+    /** Escapes a literal so it matches itself inside a character class. */
+    private static String inClassEscape(char c) {
+        switch (c) {
+            case '\\': case ']': case '^': case '-':
+                return "\\" + c;
+            default: return String.valueOf(c);
+        }
     }
 
     /**
