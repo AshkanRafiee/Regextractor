@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
     private LinearLayout resultCard;
     private TextView matchesHeader;
     private LinearLayout matchesList;
-    private ToggleChip chipCase, chipMultiline, chipDotAll, chipGlobal;
+    private ToggleChip chipCase, chipMultiline, chipDotAll, chipGlobal, chipBroad;
     private Switch namedGroupsSwitch;
     private final List<FormatChip> formatChips = new ArrayList<>();
 
@@ -254,6 +254,16 @@ public class MainActivity extends Activity {
         chipGlobal = new ToggleChip(toggles, "\u221E", "Find & highlight every match, e.g. all emails",
                 "global", false);
         card.addView(toggles, margin(0, 0, 0, 4));
+
+        LinearLayout broadRow = new LinearLayout(this);
+        broadRow.setGravity(Gravity.CENTER_VERTICAL);
+        chipBroad = new ToggleChip(broadRow, "~\u2026", "Find all similar occurrences, not just this shape",
+                "broad_match", false);
+        TextView broadLabel = text("Similar \u2014 catch variations of the same kind (all emails, IDs, prices)",
+                12, MUTED);
+        broadLabel.setPadding(dp(4), 0, 0, 0);
+        broadRow.addView(broadLabel, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(broadRow, margin(0, 0, 0, 6));
 
         LinearLayout namedRow = new LinearLayout(this);
         namedRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -488,7 +498,8 @@ public class MainActivity extends Activity {
         switch (outputFormat()) {
             case FORMAT_JAVASCRIPT:
                 return RegexBuilder.toJavascriptLiteral(currentPattern,
-                        prefs().getBoolean("global", false));
+                        prefs().getBoolean("global", false)
+                                || prefs().getBoolean("broad_match", false));
             case FORMAT_JAVA_STRING:
                 return RegexBuilder.toJavaStringLiteral(currentPattern);
             default:
@@ -506,6 +517,7 @@ public class MainActivity extends Activity {
         options.multiline = prefs().getBoolean("multiline", false);
         options.dotAll = prefs().getBoolean("dot_all", false);
         options.namedGroups = prefs().getBoolean("named_groups", false);
+        options.broadMatch = prefs().getBoolean("broad_match", false);
         return options;
     }
 
@@ -518,6 +530,8 @@ public class MainActivity extends Activity {
         matchesList.removeAllViews();
         clearMatchHighlights();
         boolean global = prefs().getBoolean("global", false);
+        boolean broad = prefs().getBoolean("broad_match", false);
+        boolean showAll = global || broad;
 
         // Positions of the spans the user actually highlighted, so "not global"
         // can show exactly what was selected instead of guessing via document
@@ -535,16 +549,16 @@ public class MainActivity extends Activity {
         try {
             Matcher matcher = Pattern.compile(currentPattern)
                     .matcher(shortTextForPreview());
-            // When "find all" is on, visually highlight every occurrence in the
-            // editor so the user sees at a glance what the pattern captures
-            // (all emails, all prices, etc.) without only seeing the ones they
-            // originally selected.
+            // When "find all" (or broad "similar") mode is on, visually
+            // highlight every occurrence in the editor so the user sees at a
+            // glance what the pattern captures (all emails, all prices, all
+            // IDs, etc.) without only seeing the ones originally selected.
             while (matcher.find()) {
                 total++;
                 MatchRow row = new MatchRow(matcher.group(), matcher.start());
                 if (found.size() < MAX_SHOWN_MATCHES) found.add(row);
                 if (selectedStarts.contains(matcher.start())) selected.add(row);
-                if (global) addMatchHighlight(matcher.start(), matcher.end());
+                if (showAll) addMatchHighlight(matcher.start(), matcher.end());
                 if (matcher.start() == matcher.end()) break; // safety against empty matches
             }
         } catch (RuntimeException broken) {
@@ -553,10 +567,12 @@ public class MainActivity extends Activity {
             return;
         }
 
-        List<MatchRow> shown = global ? found : selected;
-        matchesHeader.setText(global
-                ? "MATCHES (" + total + ")"
-                : "SELECTED (" + shown.size() + " of " + total + ")");
+        List<MatchRow> shown = showAll ? found : selected;
+        matchesHeader.setText(broad
+                ? "SIMILAR (" + total + ")"
+                : showAll
+                        ? "MATCHES (" + total + ")"
+                        : "SELECTED (" + shown.size() + " of " + total + ")");
 
         if (shown.isEmpty()) {
             matchesList.addView(noteRow(
@@ -735,6 +751,7 @@ public class MainActivity extends Activity {
         chipMultiline.sync();
         chipDotAll.sync();
         chipGlobal.sync();
+        chipBroad.sync();
         namedGroupsSwitch.setChecked(prefs().getBoolean("named_groups", false));
         for (FormatChip chip : formatChips) chip.sync();
     }
