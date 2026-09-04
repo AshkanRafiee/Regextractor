@@ -7,6 +7,9 @@ build/
 *.iml
 local.properties
 
+# Compiled classes
+*.class
+
 # Signing material must never be committed
 signing.properties
 *.jks
