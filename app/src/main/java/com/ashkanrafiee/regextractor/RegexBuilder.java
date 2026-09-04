@@ -257,7 +257,24 @@ public final class RegexBuilder {
             out.append(guard).append(klass).append("{1,}");
             i = j;
         }
-        return out.toString();
+        String result = out.toString();
+        // The domain of an email must run all the way to the end of its class
+        // run and must not stop right before a second '@'. Otherwise the
+        // engine could shrink the domain a character at a time and report a
+        // bogus fragment of a malformed "a@b@c" line. A single look-ahead
+        // (?![<tailclass>@]) is ungameable: any non-maximal stop leaves a class
+        // character directly after the unit, which the look-ahead rejects.
+        int at = result.indexOf('@');
+        if (at >= 0 && result.endsWith("{1,}")) {
+            int qstart = result.length() - 4;
+            int clsStart = result.lastIndexOf('[', qstart - 1);
+            int clsEnd = result.indexOf(']', clsStart);
+            if (clsStart >= 0 && clsEnd > clsStart && clsEnd < qstart) {
+                String tailClass = result.substring(clsStart, clsEnd);
+                result += "(?!" + tailClass + "@])";
+            }
+        }
+        return result;
     }
 
     /** Escapes a literal so it matches itself inside a character class. */

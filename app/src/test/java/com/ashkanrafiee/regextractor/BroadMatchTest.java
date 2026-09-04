@@ -122,6 +122,27 @@ public class BroadMatchTest {
     }
 
     @org.junit.Test
+    public void doubleAtResolvesToTheWellFormedTail() {
+        // "a@b@c" is malformed (an email has exactly one '@'). Like a trailing
+        // slash or paren, the well-formed tail must be reported — not the
+        // leftmost fragment sharing the separator, and never the domain shrunk
+        // char-by-char to dodge the guard.
+        String pattern = build("john@example.com");
+        assertCompiles(pattern);
+        Matcher m = Pattern.compile(pattern).matcher("kjhasdkfjhaksjdf@ajhsdgf@test.com");
+        assertTrue(m.find());
+        assertEquals("ajhsdgf@test.com", m.group(1));
+
+        m = Pattern.compile(build("a@b")).matcher("a@b@c");
+        assertTrue(m.find());
+        assertEquals("b@c", m.group(1));
+
+        m = Pattern.compile(build("a@b")).matcher("x@y@z");
+        assertTrue(m.find());
+        assertEquals("y@z", m.group(1));
+    }
+
+    @org.junit.Test
     public void hardDelimitersStayOutsideTheEmail() {
         // '/' and '(' are not email characters: a slash path after an email
         // is excluded, and a slash or paren jammed into a local part means the
