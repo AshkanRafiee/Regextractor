@@ -1,0 +1,262 @@
+package com.ashkanrafiee.regextractor;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Tests for {@link RegexBuilder.Options#broadMatch} (the "Similar" toggle).
+ *
+ * <p>Broad mode generalizes a single selected example into a category-level
+ * pattern so the app captures every occurrence of the same kind in the text
+ * (all emails, all dates, all IDs, all prices) instead of only the exact
+ * selected strings.</p>
+ */
+public class BroadMatchTest {
+
+    private static final String EMAILS =
+            "Contact john@example.com for details\n"
+                    + "or write to jane.doe@example.org instead.\n"
+                    + "asomasdm@teasd.com\n"
+                    + "manbsmfnbamsdf.sadbasjahsdf@test.com";
+
+    private static RegexBuilder.Options broad() {
+        RegexBuilder.Options o = new RegexBuilder.Options();
+        o.broadMatch = true;
+        return o;
+    }
+
+    private static String build(String... examples) {
+        return RegexBuilder.build(Arrays.asList(examples), broad());
+    }
+
+    private static int count(String pattern, String text) {
+        Pattern compiled = Pattern.compile(pattern);
+        Matcher matcher = compiled.matcher(text);
+        int total = 0;
+        while (matcher.find()) {
+            total++;
+            if (matcher.start() == matcher.end()) break;
+        }
+        return total;
+    }
+
+    private static void assertCompiles(String pattern) {
+        try {
+            Pattern.compile(pattern);
+        } catch (RuntimeException e) {
+            fail("pattern does not compile: '" + pattern + "' (" + e.getMessage() + ")");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Emails — the primary motivation for broad mode
+    // ------------------------------------------------------------------
+
+    @org.junit.Test
+    public void singleEmailFindsEveryEmailInText() {
+        String pattern = build("john@example.com");
+        assertCompiles(pattern);
+        assertEquals(4, count(pattern, EMAILS));
+    }
+
+    @org.junit.Test
+    public void dottedLocalPartEmailAlsoFindsEverything() {
+        String pattern = build("jane.doe@example.org");
+        assertCompiles(pattern);
+        assertEquals(4, count(pattern, EMAILS));
+    }
+
+    @org.junit.Test
+    public void emailPatternStillCaptureGroupMatches() {
+        String pattern = build("john@example.com");
+        Matcher matcher = Pattern.compile(pattern).matcher(EMAILS);
+        assertTrue(matcher.find());
+        assertNotNull(matcher.group(1));
+    }
+
+    @org.junit.Test
+    public void everySelectedEmailIsStillMatched() {
+        for (String email : new String[]{"john@example.com", "jane.doe@example.org",
+                "asomasdm@teasd.com", "manbsmfnbamsdf.sadbasjahsdf@test.com"}) {
+            String pattern = build(email);
+            Pattern compiled = Pattern.compile(pattern);
+            assertTrue("broad pattern '" + pattern + "' must match its own example '" + email + "'",
+                    compiled.matcher(email).find());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Other categories (generic broad behavior)
+    // ------------------------------------------------------------------
+
+    @org.junit.Test
+    public void singlePriceFindsAllPrices() {
+        String text = "Coffee - $3.50\nSandwich - $12.00\nJuice - $4.25";
+        String pattern = build("$3.50");
+        assertCompiles(pattern);
+        assertEquals(3, count(pattern, text));
+    }
+
+    @org.junit.Test
+    public void singleDateFindsAllDates() {
+        String text = "Invoice issued on 2024-05-01.\n"
+                + "Payment due by 2024-12-31.\n"
+                + "Reminder sent on 2023-08-08.";
+        String pattern = build("2024-01-15");
+        assertCompiles(pattern);
+        assertEquals(3, count(pattern, text));
+    }
+
+    @org.junit.Test
+    public void singleIdFindsOnlyIdsNotPlainWords() {
+        String text = "user-101 signed up\nteam-42 merged\nrepo-7 archived";
+        String pattern = build("user-101");
+        assertCompiles(pattern);
+        // Must find the three IDs and nothing else: no "signed", "up",
+        // "merged" or "archived".
+        assertEquals(3, count(pattern, text));
+    }
+
+    @org.junit.Test
+    public void timePatternKeepsColonStructure() {
+        String text = "at 16:45:02 then 9:01:33 and 23:59:59";
+        String pattern = build("16:45:02");
+        assertCompiles(pattern);
+        assertEquals(3, count(pattern, text));
+    }
+
+    @org.junit.Test
+    public void urlPatternKeepsSlashAndColonStructure() {
+        String text = "go to https://x.co/a or https://long.example.org/path now";
+        String pattern = build("https://x.co/a");
+        assertCompiles(pattern);
+        assertEquals(2, count(pattern, text));
+    }
+
+    @org.junit.Test
+    public void phonePatternKeepsParentheses() {
+        String text = "(555) 123-4567 and (212) 987-6543";
+        String pattern = build("(555) 123-4567");
+        assertCompiles(pattern);
+        assertEquals(2, count(pattern, text));
+    }
+
+    @org.junit.Test
+    public void pureWordBroadModeMatchesEveryWord() {
+        String text = "Alice joined\nbob logged out";
+        assertEquals(5, count(build("alice"), text));
+    }
+
+    // ------------------------------------------------------------------
+    // Options interplay
+    // ------------------------------------------------------------------
+
+    @org.junit.Test
+    public void broadMatchWithCaseInsensitiveFlag() {
+        RegexBuilder.Options o = broad();
+        o.caseInsensitive = true;
+        String pattern = RegexBuilder.build(Collections.singletonList("Status: OK"), o);
+        assertTrue(pattern.startsWith("(?i)"));
+        assertCompiles(pattern);
+        assertTrue(Pattern.compile(pattern).matcher("status: ok").find());
+    }
+
+    @org.junit.Test
+    public void broadMatchWithNamedGroups() {
+        RegexBuilder.Options o = broad();
+        o.namedGroups = true;
+        String pattern = RegexBuilder.build(Collections.singletonList("john@example.com"), o);
+        assertCompiles(pattern);
+        Matcher matcher = Pattern.compile(pattern).matcher(EMAILS);
+        assertTrue(matcher.find());
+        assertEquals("john@example.com", matcher.group("value1"));
+    }
+
+    @org.junit.Test
+    public void matchedGroupNameReflectsContent() {
+        String pattern = build("john@example.com");
+        assertTrue(pattern.contains("@"));
+        // digit-only content gets a number name in named mode
+        RegexBuilder.Options o = broad();
+        o.namedGroups = true;
+        String digits = RegexBuilder.build(Collections.singletonList("20240115"), o);
+        assertTrue(digits, digits.contains("number1"));
+    }
+
+    // ------------------------------------------------------------------
+    // Broad alternation across structurally-different selections
+    // ------------------------------------------------------------------
+
+    @org.junit.Test
+    public void structurallyDifferentExamplesCombineViaAlternation() {
+        // One is a plain lowercase word, the other digits:
+        String pattern = build("hello", "123");
+        assertCompiles(pattern);
+        assertTrue(pattern.contains("|"));
+        assertTrue(Pattern.compile(pattern).matcher("say hello then 123").find());
+    }
+
+    @org.junit.Test
+    public void exactModeStillExistsAndIsNarrow() {
+        // Without broadMatch the same single example must stay narrow.
+        RegexBuilder.Options plain = new RegexBuilder.Options();
+        String narrow = RegexBuilder.build(Collections.singletonList("john@example.com"), plain);
+        assertEquals(1, count(narrow, EMAILS));
+    }
+
+    // ------------------------------------------------------------------
+    // Edge cases
+    // ------------------------------------------------------------------
+
+    @org.junit.Test
+    public void veryLongBroadExampleCompiles() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) sb.append("x").append(i % 10);
+        String pattern = build(sb.toString());
+        assertCompiles(pattern);
+        assertTrue(Pattern.compile(pattern).matcher(sb.toString()).find());
+    }
+
+    @org.junit.Test
+    public void emptyInputStillRejected() {
+        try {
+            RegexBuilder.build(Collections.emptyList(), broad());
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertNotNull(expected.getMessage());
+        }
+    }
+
+    @org.junit.Test
+    public void duplicatesAreIgnoredInBroadMode() {
+        String pattern = build("abc@x.com", "abc@x.com", "abc@x.com");
+        assertCompiles(pattern);
+    }
+
+    @org.junit.Test
+    public void broadPatternsDoNotMatchUnrelatedText() {
+        String pattern = build("john@example.com");
+        String unrelated = "there are no emails here, just words and 123 numbers.";
+        assertFalse(Pattern.compile(pattern).matcher(unrelated).find());
+    }
+
+    @org.junit.Test
+    public void broadAllFlagsCombined() {
+        RegexBuilder.Options o = broad();
+        o.caseInsensitive = true;
+        o.multiline = true;
+        o.dotAll = true;
+        String pattern = RegexBuilder.build(Collections.singletonList("john@example.com"), o);
+        assertCompiles(pattern);
+        assertEquals(4, count(pattern, EMAILS));
+    }
+}
