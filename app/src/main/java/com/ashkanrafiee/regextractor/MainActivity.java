@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
 
     private EditText editor;
     private final List<BackgroundColorSpan> selectionSpans = new ArrayList<>();
+    private final List<BackgroundColorSpan> matchHighlightSpans = new ArrayList<>();
     private TextView selectionsHint;
     private LinearLayout selectionChips;
     private TextView patternView;
@@ -250,7 +251,7 @@ public class MainActivity extends Activity {
                 "multiline", false);
         chipDotAll = new ToggleChip(toggles, ".*", "Dot also matches line breaks",
                 "dot_all", false);
-        chipGlobal = new ToggleChip(toggles, "\u221E", "Find every occurrence, not just the first",
+        chipGlobal = new ToggleChip(toggles, "\u221E", "Find & highlight every match, e.g. all emails",
                 "global", false);
         card.addView(toggles, margin(0, 0, 0, 4));
 
@@ -372,6 +373,22 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Removes all auto-generated match highlight spans from the editor. */
+    private void clearMatchHighlights() {
+        Editable text = editor.getText();
+        for (BackgroundColorSpan span : matchHighlightSpans) text.removeSpan(span);
+        matchHighlightSpans.clear();
+    }
+
+    /** Adds a subtle background highlight for one auto-found match. */
+    private void addMatchHighlight(int start, int end) {
+        if (start < 0 || end <= start) return;
+        BackgroundColorSpan span = new BackgroundColorSpan(
+                withAlpha(PURPLE, 26));
+        editor.getText().setSpan(span, start, end, SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
+        matchHighlightSpans.add(span);
+    }
+
     /** Re-renders the chip list from the live spans (positions follow edits). */
     private void refreshSelectionUi() {
         selectionChips.removeAllViews();
@@ -452,6 +469,7 @@ public class MainActivity extends Activity {
             resultCard.setVisibility(View.GONE);
             matchesHeader.setVisibility(View.GONE);
             matchesList.removeAllViews();
+            clearMatchHighlights();
             return;
         }
 
@@ -498,6 +516,7 @@ public class MainActivity extends Activity {
      */
     private void refreshMatches(RegexBuilder.Options options) {
         matchesList.removeAllViews();
+        clearMatchHighlights();
         boolean global = prefs().getBoolean("global", false);
 
         // Positions of the spans the user actually highlighted, so "not global"
@@ -516,11 +535,16 @@ public class MainActivity extends Activity {
         try {
             Matcher matcher = Pattern.compile(currentPattern)
                     .matcher(shortTextForPreview());
+            // When "find all" is on, visually highlight every occurrence in the
+            // editor so the user sees at a glance what the pattern captures
+            // (all emails, all prices, etc.) without only seeing the ones they
+            // originally selected.
             while (matcher.find()) {
                 total++;
                 MatchRow row = new MatchRow(matcher.group(), matcher.start());
                 if (found.size() < MAX_SHOWN_MATCHES) found.add(row);
                 if (selectedStarts.contains(matcher.start())) selected.add(row);
+                if (global) addMatchHighlight(matcher.start(), matcher.end());
                 if (matcher.start() == matcher.end()) break; // safety against empty matches
             }
         } catch (RuntimeException broken) {
