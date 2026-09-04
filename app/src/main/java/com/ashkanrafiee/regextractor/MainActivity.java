@@ -255,10 +255,10 @@ public class MainActivity extends Activity {
 
         LinearLayout broadRow = new LinearLayout(this);
         broadRow.setGravity(Gravity.CENTER_VERTICAL);
-        chipBroad = new ToggleChip(broadRow, "~\u2026", "Find all similar occurrences, not just this shape",
+        chipBroad = new ToggleChip(broadRow, "\u221E", "Find every match of the same kind, e.g. all emails",
                 "broad_match", false);
-        TextView broadLabel = text("Similar \u2014 catch variations of the same kind (all emails, IDs, prices)",
-                12, MUTED);
+        TextView broadLabel = text("All \u2014 every match of the kind, not just the exact selection "
+                + "(all emails, IDs, prices)", 12, MUTED);
         broadLabel.setPadding(dp(4), 0, 0, 0);
         broadRow.addView(broadLabel, new LinearLayout.LayoutParams(0, -2, 1));
         card.addView(broadRow, margin(0, 0, 0, 6));
@@ -544,7 +544,7 @@ public class MainActivity extends Activity {
         try {
             Matcher matcher = Pattern.compile(currentPattern)
                     .matcher(shortTextForPreview());
-            // When "find all" (or broad "similar") mode is on, visually
+            // When "find all matches" (broad ∞) mode is on, visually
             // highlight every occurrence in the editor so the user sees at a
             // glance what the pattern captures (all emails, all prices, all
             // IDs, etc.) without only seeing the ones originally selected.
@@ -564,7 +564,7 @@ public class MainActivity extends Activity {
 
         List<MatchRow> shown = broad ? found : selected;
         matchesHeader.setText(broad
-                ? "SIMILAR (" + total + ")"
+                ? "MATCHES (" + total + ")"
                 : "SELECTED (" + shown.size() + " of " + total + ")");
 
         if (shown.isEmpty()) {
