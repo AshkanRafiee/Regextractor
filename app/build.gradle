@@ -1,14 +1,18 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.ashkanrafiee.regextractor'
-    compileSdk 36
+    namespace = 'com.ashkanrafiee.regextractor'
+    compileSdk = 36
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
     defaultConfig {
-        applicationId 'com.ashkanrafiee.regextractor'
-        minSdk 26
-        targetSdk 36
-        versionCode 10000
-        versionName '1.0.0'
+        applicationId = 'com.ashkanrafiee.regextractor'
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 10000
+        versionName = '1.0.0'
     }
     dependenciesInfo { includeInApk = false; includeInBundle = false }
 
