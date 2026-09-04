@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
     private LinearLayout resultCard;
     private TextView matchesHeader;
     private LinearLayout matchesList;
-    private ToggleChip chipCase, chipMultiline, chipDotAll, chipGlobal, chipBroad;
+    private ToggleChip chipCase, chipMultiline, chipDotAll, chipBroad;
     private Switch namedGroupsSwitch;
     private final List<FormatChip> formatChips = new ArrayList<>();
 
@@ -251,8 +251,6 @@ public class MainActivity extends Activity {
                 "multiline", false);
         chipDotAll = new ToggleChip(toggles, ".*", "Dot also matches line breaks",
                 "dot_all", false);
-        chipGlobal = new ToggleChip(toggles, "\u221E", "Find & highlight every match, e.g. all emails",
-                "global", false);
         card.addView(toggles, margin(0, 0, 0, 4));
 
         LinearLayout broadRow = new LinearLayout(this);
@@ -498,8 +496,7 @@ public class MainActivity extends Activity {
         switch (outputFormat()) {
             case FORMAT_JAVASCRIPT:
                 return RegexBuilder.toJavascriptLiteral(currentPattern,
-                        prefs().getBoolean("global", false)
-                                || prefs().getBoolean("broad_match", false));
+                        prefs().getBoolean("broad_match", false));
             case FORMAT_JAVA_STRING:
                 return RegexBuilder.toJavaStringLiteral(currentPattern);
             default:
@@ -529,14 +526,12 @@ public class MainActivity extends Activity {
     private void refreshMatches(RegexBuilder.Options options) {
         matchesList.removeAllViews();
         clearMatchHighlights();
-        boolean global = prefs().getBoolean("global", false);
         boolean broad = prefs().getBoolean("broad_match", false);
-        boolean showAll = global || broad;
 
-        // Positions of the spans the user actually highlighted, so "not global"
-        // can show exactly what was selected instead of guessing via document
-        // order (which would show the wrong occurrence unless the selection
-        // happened to be the first one in the text).
+        // Positions of the spans the user actually highlighted, so non-broad
+        // mode can show exactly what was selected instead of guessing via
+        // document order (which would show the wrong occurrence unless the
+        // selection happened to be the first one in the text).
         Set<Integer> selectedStarts = new HashSet<>();
         Editable text = editor.getText();
         for (BackgroundColorSpan span : selectionSpans) {
@@ -558,7 +553,7 @@ public class MainActivity extends Activity {
                 MatchRow row = new MatchRow(matcher.group(), matcher.start());
                 if (found.size() < MAX_SHOWN_MATCHES) found.add(row);
                 if (selectedStarts.contains(matcher.start())) selected.add(row);
-                if (showAll) addMatchHighlight(matcher.start(), matcher.end());
+                if (broad) addMatchHighlight(matcher.start(), matcher.end());
                 if (matcher.start() == matcher.end()) break; // safety against empty matches
             }
         } catch (RuntimeException broken) {
@@ -567,12 +562,10 @@ public class MainActivity extends Activity {
             return;
         }
 
-        List<MatchRow> shown = showAll ? found : selected;
+        List<MatchRow> shown = broad ? found : selected;
         matchesHeader.setText(broad
                 ? "SIMILAR (" + total + ")"
-                : showAll
-                        ? "MATCHES (" + total + ")"
-                        : "SELECTED (" + shown.size() + " of " + total + ")");
+                : "SELECTED (" + shown.size() + " of " + total + ")");
 
         if (shown.isEmpty()) {
             matchesList.addView(noteRow(
@@ -750,7 +743,6 @@ public class MainActivity extends Activity {
         chipCase.sync();
         chipMultiline.sync();
         chipDotAll.sync();
-        chipGlobal.sync();
         chipBroad.sync();
         namedGroupsSwitch.setChecked(prefs().getBoolean("named_groups", false));
         for (FormatChip chip : formatChips) chip.sync();
