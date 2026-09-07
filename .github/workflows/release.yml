@@ -51,7 +51,7 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > regextractor-release.jks
           cat > signing.properties <<EOF
           storeFile=regextractor-release.jks
-          storeType=JKS
+          storeType=PKCS12
           storePassword=$KEYSTORE_PASSWORD
           keyAlias=$KEY_ALIAS
           keyPassword=$KEY_PASSWORD
