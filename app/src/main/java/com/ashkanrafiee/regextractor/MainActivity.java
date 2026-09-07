@@ -56,6 +56,7 @@ public class MainActivity extends Activity {
 
     private static final int MAX_SELECTIONS = 40;
     private static final int MAX_SHOWN_MATCHES = 100;
+    private static final int PREVIEW_MAX_CHARS = 200_000;
     private static final long UPDATE_DELAY_MS = 150;
 
     /** Ready-to-paste output forms for the generated pattern. */
@@ -121,6 +122,12 @@ public class MainActivity extends Activity {
         handleIncomingIntent(getIntent());
         refreshOptionsFromPrefs();
         updateNow();
+    }
+
+    @Override
+    protected void onDestroy() {
+        handler.removeCallbacks(updateTask);
+        super.onDestroy();
     }
 
     // ------------------------------------------------------------------
@@ -574,7 +581,7 @@ public class MainActivity extends Activity {
 
     private String shortTextForPreview() {
         Editable text = editor.getText();
-        return text.subSequence(0, Math.min(text.length(), 200_000)).toString();
+        return text.subSequence(0, Math.min(text.length(), PREVIEW_MAX_CHARS)).toString();
     }
 
     private View matchRow(MatchRow row, boolean first) {
@@ -695,7 +702,7 @@ public class MainActivity extends Activity {
     private void handleIncomingIntent(Intent intent) {
         if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return;
         CharSequence shared = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
-        if (shared != null && shared.length() > 0) editor.setText(shared);
+        if (shared != null && shared.length() > 0) offerReplace(shared.toString(), "Use shared text?");
     }
 
     // ------------------------------------------------------------------
