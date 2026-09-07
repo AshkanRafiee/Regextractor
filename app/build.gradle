@@ -23,7 +23,7 @@ android {
     signingConfigs { release {
         if (signingValues['storeFile'] ?: env.REGEXTRACTOR_STORE_FILE) {
             storeFile rootProject.file(signingValues['storeFile'] ?: env.REGEXTRACTOR_STORE_FILE)
-            storeType (signingValues['storeType'] ?: env.REGEXTRACTOR_STORE_TYPE ?: 'JKS')
+            storeType (signingValues['storeType'] ?: env.REGEXTRACTOR_STORE_TYPE ?: 'PKCS12')
             storePassword (signingValues['storePassword'] ?: env.REGEXTRACTOR_STORE_PASSWORD)
             keyAlias (signingValues['keyAlias'] ?: env.REGEXTRACTOR_KEY_ALIAS)
             keyPassword (signingValues['keyPassword'] ?: env.REGEXTRACTOR_KEY_PASSWORD)
