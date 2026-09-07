@@ -1,8 +1,13 @@
 # Normalize all text files to LF on commit
 * text=auto eol=lf
 
+# Windows batch scripts must keep CRLF to run correctly under cmd.exe
+*.bat text eol=crlf
+
 # Binary files must not be modified
 *.png binary
 *.jar binary
 *.jks binary
 *.keystore binary
+*.p12 binary
+*.pfx binary
