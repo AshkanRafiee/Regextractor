@@ -1,0 +1,7 @@
+The first release of Regextractor — a private, offline tool that builds regular expressions from examples.
+
+- Turn highlighted text into a ready-to-use regex with live match preview
+- Start extracting right away: matches are captured into group 1, optional named groups
+- Copy the pattern as plain, JavaScript, or Java/Kotlin string
+- Sample presets for log lines, dates, emails, prices and IDs, plus share text in from other apps
+- Fully offline: no permissions, no account, no analytics, no tracking
